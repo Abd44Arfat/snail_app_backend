@@ -50,16 +50,62 @@ export const initSocket = (io) => {
         });
 
         // Trip Events
-        socket.on('requestTrip', (data) => {
-            // data contains tripId, pickup, carType
-            // Broadcast to drivers of specific carType
-            // For simplicity, broadcasting to all drivers for now, client side filtering can be done or room based
-            socket.broadcast.emit('newTripRequest', data);
+        socket.on('requestTrip', async (data) => {
+            console.log(`📥 Ride request received from user ${socket.user._id}:`, data);
+            
+            // Find all online drivers with matching carType (or all if carType not specified)
+            const driverQuery = {
+                role: 'driver',
+                isOnline: true
+            };
+            
+            // Filter by carType if provided
+            if (data.carType) {
+                driverQuery.carType = data.carType;
+            }
+            
+            const onlineDrivers = await User.find(driverQuery).select('_id socketId name carType averageRating location');
+            
+            console.log(`🚗 Found ${onlineDrivers.length} online driver(s) for carType: ${data.carType || 'any'}`);
+            
+            // Add user info to the trip data
+            const tripRequestData = {
+                ...data,
+                userId: socket.user._id.toString(),
+                userName: socket.user.name,
+            };
+            
+            // Send to each online driver
+            onlineDrivers.forEach((driver) => {
+                if (driver.socketId) {
+                    console.log(`📤 Sending ride request to driver ${driver.name} (${driver._id})`);
+                    io.to(driver.socketId).emit('newTripRequest', tripRequestData);
+                }
+            });
+            
+            // Also emit to 'requestTrip' event listeners (for backward compatibility)
+            socket.broadcast.emit('requestTrip', tripRequestData);
         });
 
-        socket.on('tripAccepted', (data) => {
+        socket.on('tripAccepted', async (data) => {
             const { tripId, driverId, userId } = data;
-            io.to(userId).emit('tripAccepted', { tripId, driverId });
+            
+            // Find the user's socketId to send the event
+            const user = await User.findById(userId);
+            if (user && user.socketId) {
+                io.to(user.socketId).emit('tripAccepted', { 
+                    tripId, 
+                    driverId,
+                    driverName: socket.user.name,
+                    carModel: socket.user.carType,
+                    plateNumber: 'N/A', // You might want to add this to user model
+                    rating: socket.user.averageRating,
+                    driverImage: ''
+                });
+            } else {
+                // Fallback: try to emit to userId room (if user joined their own room)
+                io.to(userId).emit('tripAccepted', { tripId, driverId });
+            }
         });
 
         socket.on('tripStatusUpdate', (data) => {

@@ -189,7 +189,7 @@ export const rateDriver = catchAsync(async (req, res, next) => {
 
 export const submitBid = catchAsync(async (req, res, next) => {
     const { tripId } = req.params;
-    const { bidAmount, message } = req.body;
+    const { bidAmount, estimatedArrival, message } = req.body;
     const driverId = req.user._id;
 
     // Validate driver role
@@ -220,6 +220,7 @@ export const submitBid = catchAsync(async (req, res, next) => {
         tripId,
         driverId,
         bidAmount,
+        estimatedArrival: estimatedArrival || null,
         message: message || ''
     });
 

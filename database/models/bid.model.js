@@ -16,6 +16,10 @@ const bidSchema = new mongoose.Schema({
         required: true,
         min: 0
     },
+    estimatedArrival: {
+        type: Number,
+        min: 0
+    },
     message: {
         type: String,
         trim: true,
