@@ -18,7 +18,7 @@ async function runTest() {
             email: driverEmail,
             password: 'password123',
             role: 'driver',
-            carType: 'scooter',
+            carType: 'economy',
             location: { lat: 30.0, lng: 31.0 }
         });
         const driverToken = driverRes.data.token;
@@ -54,7 +54,7 @@ async function runTest() {
         const estimateRes = await axios.post(`${API_URL}/trips/estimate`, {
             pickup: { lat: 30.0, lng: 31.0 },
             dropoff: { lat: 30.05, lng: 31.05 },
-            carType: 'scooter'
+            carType: 'economy'
         }, { headers: { Authorization: `Bearer ${userToken}` } });
         console.log('   Estimate:', estimateRes.data.estimate);
 
@@ -63,7 +63,7 @@ async function runTest() {
         const tripRes = await axios.post(`${API_URL}/trips/request`, {
             pickup: { lat: 30.0, lng: 31.0 },
             dropoff: { lat: 30.05, lng: 31.05 },
-            carType: 'scooter',
+            carType: 'economy',
             price: estimateRes.data.estimate.price,
             distance: estimateRes.data.estimate.distance,
             duration: estimateRes.data.estimate.duration,
@@ -73,7 +73,7 @@ async function runTest() {
         console.log('   Trip requested:', tripId);
 
         // Emit requestTrip event
-        userSocket.emit('requestTrip', { tripId, pickup: { lat: 30.0, lng: 31.0 }, carType: 'scooter' });
+        userSocket.emit('requestTrip', { tripId, pickup: { lat: 30.0, lng: 31.0 }, carType: 'economy' });
 
         // 6. Driver Receives Request & Accepts
         console.log('6. Driver Accepting Trip...');

@@ -23,6 +23,10 @@ app.use(cors());
 app.use(express.json())
 
 app.use('/uploads', express.static('uploads'))
+
+// Make io available globally for controllers
+app.set('io', io);
+
 bootstrap(app)
 
 // Initialize Socket.io

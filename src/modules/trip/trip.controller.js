@@ -56,6 +56,17 @@ export const getEstimate = catchAsync(async (req, res, next) => {
 export const requestTrip = catchAsync(async (req, res, next) => {
     const { pickup, dropoff, carType, price, distance, duration, paymentMethod } = req.body;
 
+    console.log('📥 Request trip data:', {
+        pickup,
+        dropoff,
+        carType,
+        price,
+        distance,
+        duration,
+        paymentMethod,
+        userId: req.user._id
+    });
+
     const trip = await Trip.create({
         userId: req.user._id,
         pickup,
@@ -67,6 +78,8 @@ export const requestTrip = catchAsync(async (req, res, next) => {
         paymentMethod,
         status: 'pending'
     });
+
+    console.log('✅ Trip created:', trip._id);
 
     // Emit event to find drivers (handled in socket.js usually, but we can trigger it here if we had access to io)
     // For now, we'll rely on the client to emit 'requestTrip' via socket after getting this ID, 
@@ -226,6 +239,24 @@ export const submitBid = catchAsync(async (req, res, next) => {
 
     // Populate driver details for response
     const populatedBid = await Bid.findById(bid._id).populate('driverId', 'name averageRating carType');
+
+    // Emit WebSocket event to notify the user
+    const io = req.app.get('io');
+    if (io) {
+        // Find the user who requested this trip
+        const userSocketId = await User.findById(trip.userId).select('socketId');
+
+        if (userSocketId && userSocketId.socketId) {
+            console.log(`📤 Emitting newDriverBid to user ${trip.userId} (socket: ${userSocketId.socketId})`);
+
+            io.to(userSocketId.socketId).emit('newDriverBid', {
+                tripId: tripId,
+                bid: populatedBid
+            });
+        } else {
+            console.log(`⚠️ User ${trip.userId} not connected via WebSocket`);
+        }
+    }
 
     res.status(201).json({
         message: "success",
