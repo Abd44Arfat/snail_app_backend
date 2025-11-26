@@ -111,11 +111,35 @@ export const updateTripStatus = catchAsync(async (req, res, next) => {
     const { tripId } = req.params;
     const { status } = req.body; // started, completed, cancelled
 
-    const trip = await Trip.findByIdAndUpdate(tripId, { status }, { new: true });
+    const trip = await Trip.findByIdAndUpdate(tripId, { status }, { new: true })
+        .populate('userId', 'name socketId')
+        .populate('driverId', 'name socketId');
 
     if (status === 'completed') {
         trip.isPaid = true;
         await trip.save();
+
+        // Emit trip completion to both user and driver via WebSocket
+        const io = req.app.get('io');
+        if (io) {
+            // Notify user
+            if (trip.userId && trip.userId.socketId) {
+                io.to(trip.userId._id.toString()).emit('tripCompleted', {
+                    tripId: trip._id,
+                    status: 'completed',
+                    message: 'Trip completed successfully'
+                });
+            }
+
+            // Notify driver
+            if (trip.driverId && trip.driverId.socketId) {
+                io.to(trip.driverId._id.toString()).emit('tripCompleted', {
+                    tripId: trip._id,
+                    status: 'completed',
+                    message: 'Trip completed successfully'
+                });
+            }
+        }
     }
 
     res.status(200).json({ message: "success", trip });
@@ -328,9 +352,39 @@ export const acceptBid = catchAsync(async (req, res, next) => {
         { status: 'rejected' }
     );
 
+    // Populate trip with user and driver details
+    const populatedTrip = await Trip.findById(tripId)
+        .populate('userId', 'name email phone')
+        .populate('driverId', 'name email phone carType averageRating location');
+
+    // Emit WebSocket events
+    const io = req.app.get('io');
+    if (io) {
+        // Notify driver
+        const driver = await User.findById(bid.driverId).select('socketId');
+        if (driver?.socketId) {
+            console.log(`📤 Notifying driver that bid was accepted`);
+            io.to(driver.socketId).emit('bidAccepted', {
+                tripId,
+                trip: populatedTrip
+            });
+        }
+
+        // Notify user
+        const user = await User.findById(trip.userId).select('socketId');
+        if (user?.socketId) {
+            console.log(`📤 Notifying user that trip is starting`);
+            io.to(user.socketId).emit('tripStarted', {
+                tripId,
+                trip: populatedTrip,
+                driver: populatedTrip.driverId
+            });
+        }
+    }
+
     res.status(200).json({
         message: "success",
-        trip
+        trip: populatedTrip
     });
 });
 

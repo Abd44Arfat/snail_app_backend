@@ -141,24 +141,38 @@ export const initSocket = (io) => {
         });
 
         socket.on('sendMessage', async (data) => {
-            const { receiverId, content } = data;
+            const { receiverId, content, tripId } = data;
+
+            console.log(`💬 Message from ${socket.user.name} to ${receiverId}: ${content}`);
 
             // Save message to DB
             const message = await Message.create({
                 senderId: socket.user._id,
                 receiverId,
-                content
+                content,
+                rideId: tripId || null
             });
 
-            // Emit to receiver (if in same room or direct emit)
-            // Assuming room is a unique combination of IDs or just emitting to receiver's socketId if known, 
-            // but here we can use a room convention like `chat_${minId}_${maxId}` or just emit to specific user room if they joined their own ID room.
-            // For simplicity, let's assume users join their own ID room.
+            console.log(`✅ Message saved with ID: ${message._id}`);
 
+            // Convert to plain object with string IDs
+            const messageData = {
+                _id: message._id.toString(),
+                senderId: message.senderId.toString(),
+                receiverId: message.receiverId.toString(),
+                content: message.content,
+                timestamp: message.createdAt,
+                read: message.read,
+                rideId: message.rideId
+            };
+
+            // Emit to receiver
             io.to(receiverId).emit('newMessage', {
-                message,
-                sender: { id: socket.user._id, name: socket.user.name }
+                message: messageData,
+                sender: { id: socket.user._id.toString(), name: socket.user.name }
             });
+
+            console.log(`📤 Message emitted to ${receiverId}`);
         });
 
         // Join own room for private messages
